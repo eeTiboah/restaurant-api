@@ -2,6 +2,8 @@ const express = require('express')
 const connectDB = require('./config/db')
 const dotenv = require('dotenv')
 dotenv.config({path: './config/config.env'})
+const fileUpload = require('express-fileupload')
+const path = require('path')
 
 const errorHandler = require('./middleware/error')
 
@@ -10,8 +12,10 @@ const foodRouter = require('./routes/food')
 
 
 const app = express()
+app.use(fileUpload())
 
 app.use(express.json())
+app.use(express.static(path.join(__dirname, 'public')))
 connectDB()
 
 app.use('/api/v1/restaurants', restaurantRouter)

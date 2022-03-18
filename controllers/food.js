@@ -8,24 +8,18 @@ const ErrorResponse = require('../utils/errorResponse')
 // @access    Public
 
 exports.getAllFood = asyncHandler(async (req,res,next) => {
-  let query
 
   if (req.params.restaurantId){
-    query = Food.find({bootcamp: req.params.restaurantId})
-  } else{
-    query = Food.find().populate({
-      path: 'restaurant',
-      select: 'name description'
+    const foods = Food.find({bootcamp: req.params.restaurantId})
+    res.status(200).json({
+      success: true,
+      count: foods.length,
+      data: foods
     })
+  } else{
+    res.status(200).json(res.advancedResults)
   }
-
-  const foods = await query
-
-  res.status(200).json({
-    success: true,
-    count: foods.length,
-    data: foods
-  })
+ 
 })
 
 

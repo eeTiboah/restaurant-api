@@ -2,6 +2,7 @@ const asyncHandler = require('../middleware/async');
 const Restaurant = require('../models/Restaurant');
 const ErrorResponse = require('../utils/errorResponse');
 const geocoder = require('../utils/nodegeocoder');
+const path = require('path')
 
 
 // @desc      GET ALL RESTAURANTS
@@ -9,61 +10,7 @@ const geocoder = require('../utils/nodegeocoder');
 // @access    Public
 
 exports.getAllRestaurants = asyncHandler(async (req,res,next) => {
-  let query;
-  let reqQuery = {...req.query}
-  const removeFields = ['select', 'sort', 'limit', 'page']
-
-  removeFields.forEach(param => delete reqQuery[param])
-  let queryStr = JSON.stringify(reqQuery)
-  queryStr = queryStr.replace(/\b(gt|gte|lte|lt|in)\b/g, match => `$${match}`)
-
-  query = Restaurant.find(JSON.parse(queryStr))
-
-  if (req.query.select){
-    const fields = req.query.select.split(',').join(' ')
-    query = query.select(fields)
-  }
-
-  if (req.query.sort){
-    const sortBy = req.query.sort.split(',').join(' ')
-    query = query.sort(sortBy)
-  } else {
-    query = query.sort('-createdAt')
-  }
-
-  const page = parseInt(req.query.page, 10) || 1
-  const limit = parseInt(req.query.limit, 10) || 1
-  const startIndex = (page - 1) * limit
-  const endIndex = page * limit
-  const total = await Restaurant.countDocuments()
-
-  query = query.skip(startIndex).limit(limit)
-
-  let pagination = {}
-
-  if (startIndex > 0){
-    pagination.prev = {
-      page: page - 1,
-      limit
-    }
-  }
-
-  if (startIndex < total){
-    pagination.next = {
-      page: page + 1,
-      limit
-    }
-  }
-
-  const restaurants = await query
-  
-  res.status(200).json({
-    success: true,
-    pagination,
-    count: restaurants.length,
-    data: restaurants
-  })
-
+  res.status(200).json(res.advancedResults)
 })
 
 // @desc      GET A RESTAURANT
@@ -163,4 +110,45 @@ exports.getRestaurantInDistance = asyncHandler( async (req,res,next) => {
     count: restaurants.length,
     data: restaurants
   })
+})
+
+
+// @desc      UPDATE A RESTAURANT PHOTO
+// @route     PUT /api/v1/restaurants/:id/photo
+// @access    Public
+
+exports.updateRestaurantPhoto = asyncHandler(async (req,res,next) => {
+  const restaurant = await Restaurant.findById(req.params.id)
+  if (!restaurant){
+    return next(new ErrorResponse(`Restaurant with id ${req.params.id} not found`, 404))
+  }
+
+  if(!req.files){
+    return next(new ErrorResponse(`Please upload a file`, 400))
+  }
+
+  const file = req.files.file
+
+  if (!file.mimetype.startsWith('image')){
+    return next(new ErrorResponse(`Please upload an image file`, 404))
+  }
+
+  if (file.size > process.env.MAX_FILE_SIZE){
+    return next(new ErrorResponse(`Please upload an image file with size less than ${process.env.MAX_FILE_SIZE}`, 404))
+  }
+
+  file.name = `photo-${restaurant._id}${path.parse(file.name).ext}`
+
+  file.mv(`${process.env.FILE_UPLOAD_PATH}/${file.name}`, async err => {
+    if (err){
+      return next(new ErrorResponse(`Problem with file upload`, 400))
+    }
+
+    await Restaurant.findByIdAndUpdate(req.params.id, {photo: file.name})
+    res.status(200).json({
+      success: true,
+      data: file.name
+    })
+  })
+
 })
